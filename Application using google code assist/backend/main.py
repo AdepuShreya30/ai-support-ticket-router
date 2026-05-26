@@ -211,15 +211,24 @@ PROVIDED ANALYSIS:
 - Urgency: {analysis.get('urgency')}
 - Sentiment: {analysis.get('sentiment')}
 
+VALID CATEGORIES:
+- Technical Issue (app crashes, bugs, errors)
+- Billing Inquiry (payments, invoices, charges)
+- Feature Request (enhancement suggestions)
+- General Question (how-tos, password reset, account info)
+
+VALID URGENCIES: Low, Medium, High
+VALID SENTIMENTS: Positive, Neutral, Negative
+
 Validate:
-1. Is the category correct?
+1. Is the category correct? Choose from the valid categories above.
 2. Is the urgency level accurate?
-3. Does the sentiment match the tone?
+3. Does the sentiment match the customer's tone?
 
 Return ONLY this JSON format:
 {{"is_correct": true, "confidence": 0.95, "feedback": "Analysis is accurate."}}
 
-If analysis is incorrect, set is_correct to false and explain why in feedback."""
+If analysis is incorrect, set is_correct to false and explain why in feedback. Suggest the correct category from the valid list."""
 
 def get_judge_prompt(ticket: str, analysis: dict, guidance: str, email: str) -> str:
     """Generate a prompt for the LLM to judge the ticket response."""
