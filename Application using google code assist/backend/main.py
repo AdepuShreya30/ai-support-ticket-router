@@ -170,3 +170,103 @@ async def get_email(email_request: EmailRequest):
     email_prompt = get_email_prompt(ticket, analysis.dict(), guidance)
     final_email_text = query_hf_router(model=model_name, prompt=email_prompt, max_tokens=400).strip()
     return {"finalEmail": final_email_text}
+
+
+# ==================== LLM JUDGE FEATURE ====================
+
+class JudgeRequest(BaseModel):
+    ticket: str
+    analysis: TicketAnalysis
+    guidance: str
+    finalEmail: str
+
+class JudgeResponse(BaseModel):
+    quality_score: int  # 1-10
+    correctness_score: int  # 1-10
+    relevance_score: int  # 1-10
+    overall_score: int  # 1-10
+    feedback: str
+    is_approved: bool
+
+def get_judge_prompt(ticket: str, analysis: dict, guidance: str, email: str) -> str:
+    """Generate a prompt for the LLM to judge the ticket response."""
+    return f"""You are an expert support ticket quality judge. Evaluate the following ticket handling:
+
+ORIGINAL TICKET:
+{ticket}
+
+ANALYSIS:
+- Category: {analysis.get('category')}
+- Urgency: {analysis.get('urgency')}
+- Sentiment: {analysis.get('sentiment')}
+
+GUIDANCE PROVIDED:
+{guidance}
+
+CUSTOMER EMAIL:
+{email}
+
+Evaluate on the following criteria (1-10 scale):
+1. QUALITY: Is the response professional, clear, and well-structured?
+2. CORRECTNESS: Is the category and urgency assessment correct?
+3. RELEVANCE: Does the response address the customer's issue?
+
+Provide your evaluation in JSON format:
+{{
+    "quality_score": <1-10>,
+    "correctness_score": <1-10>,
+    "relevance_score": <1-10>,
+    "feedback": "Brief feedback on strengths and weaknesses",
+    "is_approved": <true if overall score >= 7, false otherwise>
+}}
+
+IMPORTANT: Return ONLY valid JSON, no additional text."""
+
+@app.post("/api/judge", response_model=JudgeResponse)
+async def judge_response(judge_request: JudgeRequest):
+    """LLM Judge evaluates the quality of the ticket response."""
+    ticket = judge_request.ticket
+    analysis = judge_request.analysis
+    guidance = judge_request.guidance
+    email = judge_request.finalEmail
+
+    model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+
+    judge_prompt = get_judge_prompt(ticket, analysis.dict(), guidance, email)
+    judge_response_text = query_hf_router(model=model_name, prompt=judge_prompt, max_tokens=300)
+
+    try:
+        # Extract JSON from response
+        json_start_index = judge_response_text.find('{')
+        json_end_index = judge_response_text.rfind('}')
+        if json_start_index == -1 or json_end_index == -1:
+            raise ValueError("No JSON object found in judge response")
+        json_string = judge_response_text[json_start_index : json_end_index + 1]
+        judge_json = json.loads(json_string)
+
+        # Calculate overall score as average
+        overall_score = round((
+            judge_json.get("quality_score", 5) +
+            judge_json.get("correctness_score", 5) +
+            judge_json.get("relevance_score", 5)
+        ) / 3)
+
+        return JudgeResponse(
+            quality_score=judge_json.get("quality_score", 5),
+            correctness_score=judge_json.get("correctness_score", 5),
+            relevance_score=judge_json.get("relevance_score", 5),
+            overall_score=overall_score,
+            feedback=judge_json.get("feedback", "No feedback provided"),
+            is_approved=judge_json.get("is_approved", overall_score >= 7)
+        )
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        print(f"Error parsing judge response: {e}\nResponse was: {judge_response_text}")
+        # Return default scores if judge fails
+        return JudgeResponse(
+            quality_score=5,
+            correctness_score=5,
+            relevance_score=5,
+            overall_score=5,
+            feedback="Judge evaluation failed. Please review manually.",
+            is_approved=False
+        )

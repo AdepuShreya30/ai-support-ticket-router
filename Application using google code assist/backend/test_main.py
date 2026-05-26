@@ -496,6 +496,107 @@ class TestRealWorldScenarios:
         print("✓ TEST 9.4 PASSED: Feature request scenario handled")
 
 
+# ==================== TEST SUITE 10: LLM JUDGE (3 tests) ====================
+
+class TestLLMJudge:
+    """Test the LLM Judge feature"""
+
+    @patch('main.query_hf_router')
+    def test_judge_endpoint_returns_scores(self, mock_query):
+        """TEST 10.1: Judge endpoint returns quality scores"""
+        judge_response = '''{
+            "quality_score": 8,
+            "correctness_score": 9,
+            "relevance_score": 8,
+            "feedback": "Excellent response to customer",
+            "is_approved": true
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "My app is crashing",
+            "analysis": {
+                "category": "Technical Issue",
+                "urgency": "High",
+                "sentiment": "Negative"
+            },
+            "guidance": "Restart the application",
+            "finalEmail": "Dear Customer, we will help you"
+        }
+
+        response = client.post("/api/judge", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "quality_score" in data
+        assert "correctness_score" in data
+        assert "relevance_score" in data
+        assert "overall_score" in data
+        assert "feedback" in data
+        assert "is_approved" in data
+        print("✓ TEST 10.1 PASSED: Judge returns all required scores")
+
+    @patch('main.query_hf_router')
+    def test_judge_approves_high_quality_response(self, mock_query):
+        """TEST 10.2: Judge approves responses with high scores"""
+        judge_response = '''{
+            "quality_score": 9,
+            "correctness_score": 9,
+            "relevance_score": 8,
+            "feedback": "Excellent professional response",
+            "is_approved": true
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "Payment failed",
+            "analysis": {
+                "category": "Billing Inquiry",
+                "urgency": "High",
+                "sentiment": "Negative"
+            },
+            "guidance": "Retry payment or contact support",
+            "finalEmail": "We understand your concern and will help"
+        }
+
+        response = client.post("/api/judge", json=payload)
+        data = response.json()
+
+        assert data["overall_score"] >= 7
+        assert data["is_approved"] == True
+        print("✓ TEST 10.2 PASSED: Judge approves high-quality responses")
+
+    @patch('main.query_hf_router')
+    def test_judge_rejects_low_quality_response(self, mock_query):
+        """TEST 10.3: Judge rejects responses with low scores"""
+        judge_response = '''{
+            "quality_score": 4,
+            "correctness_score": 3,
+            "relevance_score": 2,
+            "feedback": "Response does not address customer needs",
+            "is_approved": false
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "How do I reset my password?",
+            "analysis": {
+                "category": "General Question",
+                "urgency": "Low",
+                "sentiment": "Neutral"
+            },
+            "guidance": "Random guidance",
+            "finalEmail": "Random email"
+        }
+
+        response = client.post("/api/judge", json=payload)
+        data = response.json()
+
+        assert data["overall_score"] < 7
+        assert data["is_approved"] == False
+        print("✓ TEST 10.3 PASSED: Judge rejects low-quality responses")
+
+
 if __name__ == "__main__":
     print("\n" + "="*80)
     print("AI SUPPORT TICKET ROUTER - BACKEND TEST SUITE")

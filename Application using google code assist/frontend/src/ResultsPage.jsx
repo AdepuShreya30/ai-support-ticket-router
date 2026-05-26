@@ -8,8 +8,9 @@ function ResultsPage() {
 
     const [guidance, setGuidance] = useState(null);
     const [finalEmail, setFinalEmail] = useState(null);
-    const [loading, setLoading] = useState({ guidance: false, email: false });
-    const [error, setError] = useState({ guidance: '', email: '' });
+    const [judgeResult, setJudgeResult] = useState(null);
+    const [loading, setLoading] = useState({ guidance: false, email: false, judge: false });
+    const [error, setError] = useState({ guidance: '', email: '', judge: '' });
 
     useEffect(() => {
         if (!analysis) {
@@ -49,6 +50,28 @@ function ResultsPage() {
         }
     };
 
+    const fetchJudge = async () => {
+        if (!finalEmail) {
+            setError(prev => ({ ...prev, judge: 'Please generate email first.' }));
+            return;
+        }
+        setLoading(prev => ({ ...prev, judge: true }));
+        setError(prev => ({ ...prev, judge: '' }));
+        try {
+            const response = await axios.post('http://localhost:8000/api/judge', {
+                ticket,
+                analysis,
+                guidance,
+                finalEmail
+            });
+            setJudgeResult(response.data);
+        } catch (err) {
+            setError(prev => ({ ...prev, judge: 'Failed to judge response.' }));
+        } finally {
+            setLoading(prev => ({ ...prev, judge: false }));
+        }
+    };
+
     if (!analysis) {
         return (
             <div className="container">
@@ -82,9 +105,11 @@ function ResultsPage() {
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                         <button onClick={fetchGuidance} disabled={loading.guidance}>{loading.guidance ? 'Generating...' : guidanceButtonText}</button>
                         <button onClick={fetchEmail} disabled={loading.email || !guidance}>{loading.email ? 'Generating...' : 'Generate Suggested Email'}</button>
+                        <button onClick={fetchJudge} disabled={loading.judge || !finalEmail} style={{ backgroundColor: '#ff6b6b' }}>{loading.judge ? 'Judging...' : 'Judge Response Quality'}</button>
                     </div>
                     {error.guidance && <p className="error-box" style={{ marginTop: '1rem' }}>{error.guidance}</p>}
                     {error.email && <p className="error-box" style={{ marginTop: '1rem' }}>{error.email}</p>}
+                    {error.judge && <p className="error-box" style={{ marginTop: '1rem' }}>{error.judge}</p>}
                 </div>
 
                 {guidance && (
@@ -98,6 +123,34 @@ function ResultsPage() {
                     <div className="card">
                         <h3>Suggested Customer Email</h3>
                         <pre>{finalEmail}</pre>
+                    </div>
+                )}
+
+                {judgeResult && (
+                    <div className="card" style={{ borderLeft: judgeResult.is_approved ? '4px solid #51cf66' : '4px solid #ff6b6b' }}>
+                        <h3>Quality Judge Results {judgeResult.is_approved ? '✓ Approved' : '✗ Needs Review'}</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px', textAlign: 'center' }}>
+                                <strong>Quality</strong>
+                                <p style={{ fontSize: '2em', margin: '0.5rem 0', color: '#2ecc71' }}>{judgeResult.quality_score}/10</p>
+                            </div>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px', textAlign: 'center' }}>
+                                <strong>Correctness</strong>
+                                <p style={{ fontSize: '2em', margin: '0.5rem 0', color: '#3498db' }}>{judgeResult.correctness_score}/10</p>
+                            </div>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px', textAlign: 'center' }}>
+                                <strong>Relevance</strong>
+                                <p style={{ fontSize: '2em', margin: '0.5rem 0', color: '#9b59b6' }}>{judgeResult.relevance_score}/10</p>
+                            </div>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px', textAlign: 'center' }}>
+                                <strong>Overall</strong>
+                                <p style={{ fontSize: '2em', margin: '0.5rem 0', color: '#e74c3c' }}>{judgeResult.overall_score}/10</p>
+                            </div>
+                        </div>
+                        <div style={{ backgroundColor: '#f9f9f9', padding: '1rem', borderRadius: '4px' }}>
+                            <strong>Feedback:</strong>
+                            <p>{judgeResult.feedback}</p>
+                        </div>
                     </div>
                 )}
             </main>
