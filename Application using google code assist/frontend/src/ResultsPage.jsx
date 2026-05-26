@@ -9,8 +9,9 @@ function ResultsPage() {
     const [guidance, setGuidance] = useState(null);
     const [finalEmail, setFinalEmail] = useState(null);
     const [judgeResult, setJudgeResult] = useState(null);
-    const [loading, setLoading] = useState({ guidance: false, email: false, judge: false });
-    const [error, setError] = useState({ guidance: '', email: '', judge: '' });
+    const [analysisJudge, setAnalysisJudge] = useState(null);
+    const [loading, setLoading] = useState({ guidance: false, email: false, judge: false, analysisJudge: false });
+    const [error, setError] = useState({ guidance: '', email: '', judge: '', analysisJudge: '' });
 
     useEffect(() => {
         if (!analysis) {
@@ -20,10 +21,39 @@ function ResultsPage() {
         }
     }, [analysis]);
 
+    const fetchJudgeAnalysis = async () => {
+        setLoading(prev => ({ ...prev, analysisJudge: true }));
+        setError(prev => ({ ...prev, analysisJudge: '' }));
+        try {
+            const response = await axios.post('http://localhost:8000/api/judge-analysis', {
+                ticket,
+                analysis
+            });
+            setAnalysisJudge(response.data);
+            return response.data;
+        } catch (err) {
+            setError(prev => ({ ...prev, analysisJudge: 'Failed to validate analysis.' }));
+            return null;
+        } finally {
+            setLoading(prev => ({ ...prev, analysisJudge: false }));
+        }
+    };
+
     const fetchGuidance = async () => {
         setLoading(prev => ({ ...prev, guidance: true }));
         setError(prev => ({ ...prev, guidance: '' }));
+        setAnalysisJudge(null);
+
         try {
+            const analysisValidation = await fetchJudgeAnalysis();
+
+            if (!analysisValidation || !analysisValidation.is_correct) {
+                const feedback = analysisValidation?.feedback || 'Analysis validation failed.';
+                setError(prev => ({ ...prev, guidance: `Cannot generate guidance: ${feedback}` }));
+                setLoading(prev => ({ ...prev, guidance: false }));
+                return;
+            }
+
             const response = await axios.post('http://localhost:8000/api/guidance', { ticket, analysis });
             setGuidance(response.data.guidance);
         } catch (err) {
@@ -100,6 +130,28 @@ function ResultsPage() {
                     </div>
                 </div>
 
+                {analysisJudge && (
+                    <div className="card" style={{ borderLeft: analysisJudge.is_correct ? '4px solid #51cf66' : '4px solid #ff6b6b' }}>
+                        <h3>Analysis Validation {analysisJudge.is_correct ? '✓ Valid' : '✗ Invalid'}</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                                <strong>Confidence</strong>
+                                <p style={{ fontSize: '1.5em', margin: '0.5rem 0', color: '#3498db' }}>{(analysisJudge.confidence * 100).toFixed(0)}%</p>
+                            </div>
+                            <div style={{ padding: '1rem', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                                <strong>Status</strong>
+                                <p style={{ fontSize: '1.5em', margin: '0.5rem 0', color: analysisJudge.is_correct ? '#51cf66' : '#ff6b6b' }}>
+                                    {analysisJudge.is_correct ? 'Correct' : 'Incorrect'}
+                                </p>
+                            </div>
+                        </div>
+                        <div style={{ backgroundColor: '#f9f9f9', padding: '1rem', borderRadius: '4px' }}>
+                            <strong>Validator Feedback:</strong>
+                            <p>{analysisJudge.feedback}</p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="card">
                     <h3>Next Steps</h3>
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -107,6 +159,7 @@ function ResultsPage() {
                         <button onClick={fetchEmail} disabled={loading.email || !guidance}>{loading.email ? 'Generating...' : 'Generate Suggested Email'}</button>
                         <button onClick={fetchJudge} disabled={loading.judge || !finalEmail} style={{ backgroundColor: '#ff6b6b' }}>{loading.judge ? 'Judging...' : 'Judge Response Quality'}</button>
                     </div>
+                    {error.analysisJudge && <p className="error-box" style={{ marginTop: '1rem' }}>{error.analysisJudge}</p>}
                     {error.guidance && <p className="error-box" style={{ marginTop: '1rem' }}>{error.guidance}</p>}
                     {error.email && <p className="error-box" style={{ marginTop: '1rem' }}>{error.email}</p>}
                     {error.judge && <p className="error-box" style={{ marginTop: '1rem' }}>{error.judge}</p>}

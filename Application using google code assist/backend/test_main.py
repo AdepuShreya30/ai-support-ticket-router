@@ -496,7 +496,96 @@ class TestRealWorldScenarios:
         print("✓ TEST 9.4 PASSED: Feature request scenario handled")
 
 
-# ==================== TEST SUITE 10: LLM JUDGE (3 tests) ====================
+# ==================== TEST SUITE 10: ANALYSIS JUDGE (3 tests) ====================
+
+class TestAnalysisJudge:
+    """Test the Analysis Judge validation feature"""
+
+    @patch('main.query_hf_router')
+    def test_10_1_analysis_judge_validates_correct_analysis(self, mock_query):
+        """TEST 10.1: Analysis Judge validates correct analysis"""
+        judge_response = '''{
+            "is_correct": true,
+            "confidence": 0.95,
+            "feedback": "Analysis is accurate and properly categorized"
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "My app keeps crashing when uploading photos",
+            "analysis": {
+                "category": "Technical Issue",
+                "urgency": "High",
+                "sentiment": "Negative"
+            }
+        }
+
+        response = client.post("/api/judge-analysis", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["is_correct"] == True
+        assert "confidence" in data
+        assert data["confidence"] > 0.8
+        assert "feedback" in data
+        print("✓ TEST 10.1 PASSED: Analysis judge validates correct analysis")
+
+    @patch('main.query_hf_router')
+    def test_10_2_analysis_judge_rejects_incorrect_analysis(self, mock_query):
+        """TEST 10.2: Analysis Judge rejects incorrect analysis"""
+        judge_response = '''{
+            "is_correct": false,
+            "confidence": 0.88,
+            "feedback": "Urgency should be Medium, not High. Customer is asking a general question, not reporting a critical issue"
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "How do I change my password?",
+            "analysis": {
+                "category": "General Question",
+                "urgency": "High",
+                "sentiment": "Neutral"
+            }
+        }
+
+        response = client.post("/api/judge-analysis", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["is_correct"] == False
+        assert data["confidence"] > 0.0
+        assert len(data["feedback"]) > 0
+        print("✓ TEST 10.2 PASSED: Analysis judge rejects incorrect analysis")
+
+    @patch('main.query_hf_router')
+    def test_10_3_analysis_judge_provides_feedback(self, mock_query):
+        """TEST 10.3: Analysis Judge provides detailed feedback"""
+        judge_response = '''{
+            "is_correct": true,
+            "confidence": 0.92,
+            "feedback": "Category: Billing Inquiry is correct. Urgency: High is appropriate for account access issue. Sentiment: Negative matches customer's frustration"
+        }'''
+        mock_query.return_value = judge_response
+
+        payload = {
+            "ticket": "I cannot access my account after payment failed",
+            "analysis": {
+                "category": "Billing Inquiry",
+                "urgency": "High",
+                "sentiment": "Negative"
+            }
+        }
+
+        response = client.post("/api/judge-analysis", json=payload)
+        data = response.json()
+
+        assert len(data["feedback"]) > 10
+        assert "Category" in data["feedback"] or "category" in data["feedback"].lower()
+        print("✓ TEST 10.3 PASSED: Analysis judge provides detailed feedback")
+
+
+# ==================== TEST SUITE 11: LLM JUDGE (3 tests) ====================
 
 class TestLLMJudge:
     """Test the LLM Judge feature"""
@@ -619,5 +708,7 @@ if __name__ == "__main__":
     print("  ✓ Test Suite 7: End-to-End Flows (4 tests)")
     print("  ✓ Test Suite 8: Data Consistency (3 tests)")
     print("  ✓ Test Suite 9: Real-World Scenarios (4 tests)")
-    print("\nTotal: 31 Test Cases")
+    print("  ✓ Test Suite 10: Analysis Judge (3 tests)")
+    print("  ✓ Test Suite 11: Final Quality Judge (3 tests)")
+    print("\nTotal: 37 Test Cases")
     print("="*80 + "\n")

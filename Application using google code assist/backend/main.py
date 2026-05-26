@@ -174,6 +174,17 @@ async def get_email(email_request: EmailRequest):
 
 # ==================== LLM JUDGE FEATURE ====================
 
+# --- Analysis Validation Judge ---
+class AnalysisJudgeRequest(BaseModel):
+    ticket: str
+    analysis: TicketAnalysis
+
+class AnalysisJudgeResponse(BaseModel):
+    is_correct: bool
+    confidence: float  # 0-1
+    feedback: str
+
+# --- Final Quality Judge ---
 class JudgeRequest(BaseModel):
     ticket: str
     analysis: TicketAnalysis
@@ -187,6 +198,28 @@ class JudgeResponse(BaseModel):
     overall_score: int  # 1-10
     feedback: str
     is_approved: bool
+
+def get_analysis_judge_prompt(ticket: str, analysis: dict) -> str:
+    """Generate a prompt to validate the ticket analysis."""
+    return f"""You are an expert ticket classification validator. Analyze this ticket and verify if the provided analysis is correct.
+
+CUSTOMER TICKET:
+{ticket}
+
+PROVIDED ANALYSIS:
+- Category: {analysis.get('category')}
+- Urgency: {analysis.get('urgency')}
+- Sentiment: {analysis.get('sentiment')}
+
+Validate:
+1. Is the category correct?
+2. Is the urgency level accurate?
+3. Does the sentiment match the tone?
+
+Return ONLY this JSON format:
+{{"is_correct": true, "confidence": 0.95, "feedback": "Analysis is accurate."}}
+
+If analysis is incorrect, set is_correct to false and explain why in feedback."""
 
 def get_judge_prompt(ticket: str, analysis: dict, guidance: str, email: str) -> str:
     """Generate a prompt for the LLM to judge the ticket response."""
@@ -221,6 +254,37 @@ Provide your evaluation in JSON format:
 }}
 
 IMPORTANT: Return ONLY valid JSON, no additional text."""
+
+@app.post("/api/judge-analysis", response_model=AnalysisJudgeResponse)
+async def judge_analysis(analysis_judge_request: AnalysisJudgeRequest):
+    """Validates the ticket analysis before proceeding to guidance generation."""
+    ticket = analysis_judge_request.ticket
+    analysis = analysis_judge_request.analysis
+    model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+
+    analysis_prompt = get_analysis_judge_prompt(ticket, analysis.dict())
+    analysis_response_text = query_hf_router(model=model_name, prompt=analysis_prompt, max_tokens=200)
+
+    try:
+        json_start_index = analysis_response_text.find('{')
+        json_end_index = analysis_response_text.rfind('}')
+        if json_start_index == -1 or json_end_index == -1:
+            raise ValueError("No JSON object found in analysis judge response")
+        json_string = analysis_response_text[json_start_index : json_end_index + 1]
+        judge_json = json.loads(json_string)
+
+        return AnalysisJudgeResponse(
+            is_correct=judge_json.get("is_correct", True),
+            confidence=float(judge_json.get("confidence", 0.5)),
+            feedback=judge_json.get("feedback", "Analysis validation completed.")
+        )
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        print(f"Error parsing analysis judge response: {e}\nResponse was: {analysis_response_text}")
+        return AnalysisJudgeResponse(
+            is_correct=True,
+            confidence=0.5,
+            feedback="Unable to validate analysis. Proceeding with caution."
+        )
 
 @app.post("/api/judge", response_model=JudgeResponse)
 async def judge_response(judge_request: JudgeRequest):
