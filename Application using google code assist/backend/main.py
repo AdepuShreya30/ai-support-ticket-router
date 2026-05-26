@@ -19,6 +19,16 @@ class CategoryEnum(str, Enum):
     BILLING_INQUIRY = "Billing Inquiry"
     FEATURE_REQUEST = "Feature Request"
     GENERAL_QUESTION = "General Question"
+    ACCOUNT_MANAGEMENT = "Account Management"
+    BUG_REPORT = "Bug Report"
+    COMPLAINT_ESCALATION = "Complaint/Escalation"
+    SECURITY_PRIVACY = "Security/Privacy"
+    REFUND_REQUEST = "Refund Request"
+    INTEGRATION_ISSUE = "Integration Issue"
+    PERFORMANCE_ISSUE = "Performance Issue"
+    DOCUMENTATION_API = "Documentation/API Question"
+    DATA_REQUEST = "Data Request"
+    SERVICE_STATUS = "Service Status"
 
 class UrgencyEnum(str, Enum):
     LOW = "Low"
@@ -95,7 +105,22 @@ def get_analysis_prompt(ticket: str) -> str:
 Analyze the following support ticket and extract the category, urgency, and sentiment.
 Provide the output ONLY in a valid JSON format with the keys "category", "urgency", and "sentiment".
 
-Allowed categories: ["Technical Issue", "Billing Inquiry", "Feature Request", "General Question"]
+Allowed categories: [
+  "Technical Issue",          # App crashes, errors, bugs
+  "Billing Inquiry",          # Payments, invoices, charges
+  "Feature Request",          # Enhancement suggestions
+  "General Question",         # How-tos, account info
+  "Account Management",       # Password reset, profile updates
+  "Bug Report",               # Specific software bug
+  "Complaint/Escalation",     # Customer dissatisfaction
+  "Security/Privacy",         # Data breach, privacy concerns
+  "Refund Request",           # Money back requests
+  "Integration Issue",        # Third-party integrations
+  "Performance Issue",        # Slow app, latency
+  "Documentation/API Question",  # API docs, guides
+  "Data Request",             # Export data, access
+  "Service Status"            # System down, outage
+]
 Allowed urgencies: ["Low", "Medium", "High"]
 Allowed sentiments: ["Positive", "Neutral", "Negative"]
 
@@ -212,16 +237,26 @@ PROVIDED ANALYSIS:
 - Sentiment: {analysis.get('sentiment')}
 
 VALID CATEGORIES:
-- Technical Issue (app crashes, bugs, errors)
-- Billing Inquiry (payments, invoices, charges)
-- Feature Request (enhancement suggestions)
-- General Question (how-tos, password reset, account info)
+1. Technical Issue - App crashes, errors, bugs
+2. Billing Inquiry - Payments, invoices, charges
+3. Feature Request - Enhancement suggestions
+4. General Question - How-tos, account info questions
+5. Account Management - Password reset, profile updates, account access
+6. Bug Report - Specific software bug reports
+7. Complaint/Escalation - Customer dissatisfaction, escalations
+8. Security/Privacy - Data breach, privacy concerns
+9. Refund Request - Money back requests
+10. Integration Issue - Third-party integrations
+11. Performance Issue - Slow app, latency problems
+12. Documentation/API Question - API docs, technical guides
+13. Data Request - Export data, data access requests
+14. Service Status - System down, outage reports
 
 VALID URGENCIES: Low, Medium, High
 VALID SENTIMENTS: Positive, Neutral, Negative
 
 Validate:
-1. Is the category correct? Choose from the valid categories above.
+1. Is the category correct? Choose from the 14 valid categories above.
 2. Is the urgency level accurate?
 3. Does the sentiment match the customer's tone?
 

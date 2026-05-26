@@ -433,6 +433,50 @@ class TestDataConsistency:
 # TEST SUITE 9: REAL-WORLD SCENARIOS (4 tests)
 # ============================================================================
 
+class TestExpandedCategories:
+    """Test new expanded category system"""
+
+    @patch('main.query_hf_router')
+    def test_8_4_account_management_category(self, mock_query):
+        """TEST 8.4: Analyze - Account Management category"""
+        mock_query.return_value = '{"category": "Account Management", "urgency": "Medium", "sentiment": "Neutral"}'
+        response = client.post("/api/analyze", json={"ticket": "I cannot reset my password, help!"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "Account Management"
+        print("✓ TEST 8.4 PASSED: Account Management category recognized")
+
+    @patch('main.query_hf_router')
+    def test_8_5_security_privacy_category(self, mock_query):
+        """TEST 8.5: Analyze - Security/Privacy category"""
+        mock_query.return_value = '{"category": "Security/Privacy", "urgency": "High", "sentiment": "Negative"}'
+        response = client.post("/api/analyze", json={"ticket": "I suspect my account was hacked!"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "Security/Privacy"
+        print("✓ TEST 8.5 PASSED: Security/Privacy category recognized")
+
+    @patch('main.query_hf_router')
+    def test_8_6_performance_issue_category(self, mock_query):
+        """TEST 8.6: Analyze - Performance Issue category"""
+        mock_query.return_value = '{"category": "Performance Issue", "urgency": "Medium", "sentiment": "Negative"}'
+        response = client.post("/api/analyze", json={"ticket": "The app is running very slowly"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "Performance Issue"
+        print("✓ TEST 8.6 PASSED: Performance Issue category recognized")
+
+    @patch('main.query_hf_router')
+    def test_8_7_service_status_category(self, mock_query):
+        """TEST 8.7: Analyze - Service Status category"""
+        mock_query.return_value = '{"category": "Service Status", "urgency": "High", "sentiment": "Negative"}'
+        response = client.post("/api/analyze", json={"ticket": "Your service is down!"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["category"] == "Service Status"
+        print("✓ TEST 8.7 PASSED: Service Status category recognized")
+
+
 class TestRealWorldScenarios:
     """Test real-world usage scenarios"""
 
@@ -706,9 +750,10 @@ if __name__ == "__main__":
     print("  ✓ Test Suite 5: Guidance Endpoint (3 tests)")
     print("  ✓ Test Suite 6: Email Endpoint (2 tests)")
     print("  ✓ Test Suite 7: End-to-End Flows (4 tests)")
-    print("  ✓ Test Suite 8: Data Consistency (3 tests)")
-    print("  ✓ Test Suite 9: Real-World Scenarios (4 tests)")
-    print("  ✓ Test Suite 10: Analysis Judge (3 tests)")
-    print("  ✓ Test Suite 11: Final Quality Judge (3 tests)")
-    print("\nTotal: 37 Test Cases")
+    print("  ✓ Test Suite 8: Expanded Categories (4 tests)")
+    print("  ✓ Test Suite 9: Data Consistency (3 tests)")
+    print("  ✓ Test Suite 10: Real-World Scenarios (4 tests)")
+    print("  ✓ Test Suite 11: Analysis Judge (3 tests)")
+    print("  ✓ Test Suite 12: Final Quality Judge (3 tests)")
+    print("\nTotal: 41 Test Cases")
     print("="*80 + "\n")
