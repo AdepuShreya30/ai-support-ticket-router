@@ -14,10 +14,20 @@ function HomePage() {
         setError('');
 
         try {
-            // Step 1: Call the new analyze endpoint
-            const response = await axios.post('http://localhost:8000/api/analyze', { ticket });
-            // Step 2: Navigate to the results page, passing state
-            navigate('/results', { state: { analysis: response.data, ticket } });
+            // Step 1: Check if ticket is relevant to the support system
+            const relevanceResponse = await axios.post('http://localhost:8000/api/judge-relevance', { ticket });
+
+            if (!relevanceResponse.data.is_relevant) {
+                setError(`❌ Not a Support Issue: ${relevanceResponse.data.feedback}`);
+                setLoading(false);
+                return;
+            }
+
+            // Step 2: If relevant, analyze the ticket
+            const analysisResponse = await axios.post('http://localhost:8000/api/analyze', { ticket });
+
+            // Step 3: Navigate to the results page, passing state
+            navigate('/results', { state: { analysis: analysisResponse.data, ticket } });
         } catch (err) {
             const errorMessage = err.response?.data?.detail || 'An unexpected error occurred. Please try again later.';
             setError(errorMessage);

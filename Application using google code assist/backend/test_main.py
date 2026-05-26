@@ -51,6 +51,47 @@ class TestHealthCheck:
 # TEST SUITE 2: INPUT VALIDATION (4 tests)
 # ============================================================================
 
+class TestTicketRelevance:
+    """Test ticket relevance validation"""
+
+    @patch('main.query_hf_router')
+    def test_1_4_irrelevant_ticket_rejected(self, mock_query):
+        """TEST 1.4: Relevance - Non-support tickets rejected"""
+        relevance_response = '''{
+            "is_relevant": false,
+            "confidence": 0.92,
+            "feedback": "This is a personal issue (lost pen), not a support ticket for a software service."
+        }'''
+        mock_query.return_value = relevance_response
+
+        response = client.post("/api/judge-relevance", json={"ticket": "I lost my pen"})
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["is_relevant"] == False
+        assert data["confidence"] > 0.8
+        assert "personal" in data["feedback"].lower() or "lost" in data["feedback"].lower()
+        print("✓ TEST 1.4 PASSED: Irrelevant tickets rejected")
+
+    @patch('main.query_hf_router')
+    def test_1_5_relevant_ticket_accepted(self, mock_query):
+        """TEST 1.5: Relevance - Valid support tickets accepted"""
+        relevance_response = '''{
+            "is_relevant": true,
+            "confidence": 0.95,
+            "feedback": "This is a legitimate support issue about app crashing."
+        }'''
+        mock_query.return_value = relevance_response
+
+        response = client.post("/api/judge-relevance", json={"ticket": "My app keeps crashing"})
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["is_relevant"] == True
+        assert data["confidence"] > 0.8
+        print("✓ TEST 1.5 PASSED: Relevant tickets accepted")
+
+
 class TestInputValidation:
     """Verify that inputs are properly validated"""
 
@@ -743,7 +784,7 @@ if __name__ == "__main__":
     print("TEST EXECUTION COMPLETED")
     print("="*80)
     print("\nTest Coverage Summary:")
-    print("  ✓ Test Suite 1: Health Check & API Availability (3 tests)")
+    print("  ✓ Test Suite 1: Health Check, Relevance Validation (5 tests)")
     print("  ✓ Test Suite 2: Input Validation (4 tests)")
     print("  ✓ Test Suite 3: Analyze Endpoint - Response Structure (5 tests)")
     print("  ✓ Test Suite 4: Analyze Endpoint - Error Handling (3 tests)")
@@ -755,5 +796,5 @@ if __name__ == "__main__":
     print("  ✓ Test Suite 10: Real-World Scenarios (4 tests)")
     print("  ✓ Test Suite 11: Analysis Judge (3 tests)")
     print("  ✓ Test Suite 12: Final Quality Judge (3 tests)")
-    print("\nTotal: 41 Test Cases")
+    print("\nTotal: 42 Test Cases")
     print("="*80 + "\n")

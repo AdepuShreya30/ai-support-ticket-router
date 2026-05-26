@@ -43,6 +43,11 @@ class SentimentEnum(str, Enum):
 class TicketRequest(BaseModel):
     ticket: str = Field(..., min_length=1, description="The combined content of the support ticket.")
 
+class RelevanceJudgeResponse(BaseModel):
+    is_relevant: bool      # True if ticket is relevant to the service
+    confidence: float      # 0-1: How confident is the judge
+    feedback: str         # Why it is/isn't relevant
+
 class TicketAnalysis(BaseModel):
     category: CategoryEnum
     urgency: UrgencyEnum
@@ -100,6 +105,40 @@ def query_hf_router(model: str, prompt: str, max_tokens: int = 150):
 
 
 # --- Prompt Engineering Templates ---
+def get_relevance_judge_prompt(ticket: str) -> str:
+    """Generate a prompt to validate if the ticket is relevant to the support system."""
+    return f"""You are a support ticket relevance validator. Determine if this is a genuine support issue for a software/service platform.
+
+CUSTOMER TICKET:
+{ticket}
+
+VALID SUPPORT ISSUES include:
+- Software bugs, crashes, errors
+- Feature requests for the application
+- Account and login issues
+- Payment/billing problems
+- API integration questions
+- Performance or technical problems
+- Service status/outage reports
+- Data access/export requests
+- Security or privacy concerns
+- Documentation/help questions
+
+INVALID/IRRELEVANT ISSUES include:
+- Personal/life problems unrelated to the service
+- Lost personal items (pen, wallet, keys, etc.)
+- General life advice
+- Questions about unrelated topics
+- Spam or promotional content
+- Completely off-topic messages
+
+Determine if this ticket is relevant to a support system.
+
+Return ONLY this JSON format:
+{{"is_relevant": true, "confidence": 0.95, "feedback": "This is a relevant support issue."}}
+
+If NOT relevant, explain why in feedback. Be direct and clear."""
+
 def get_analysis_prompt(ticket: str) -> str:
     return f"""
 Analyze the following support ticket and extract the category, urgency, and sentiment.
@@ -140,6 +179,36 @@ def get_email_prompt(ticket: str, analysis: dict, guidance: str) -> str:
 
 
 # --- API Endpoints ---
+
+@app.post("/api/judge-relevance", response_model=RelevanceJudgeResponse)
+async def judge_relevance(ticket_request: TicketRequest):
+    """Validates if the ticket is relevant to the support system."""
+    ticket = ticket_request.ticket
+    model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.1-8B-Instruct")
+
+    relevance_prompt = get_relevance_judge_prompt(ticket)
+    relevance_response_text = query_hf_router(model=model_name, prompt=relevance_prompt, max_tokens=200)
+
+    try:
+        json_start_index = relevance_response_text.find('{')
+        json_end_index = relevance_response_text.rfind('}')
+        if json_start_index == -1 or json_end_index == -1:
+            raise ValueError("No JSON object found in relevance judge response")
+        json_string = relevance_response_text[json_start_index : json_end_index + 1]
+        judge_json = json.loads(json_string)
+
+        return RelevanceJudgeResponse(
+            is_relevant=judge_json.get("is_relevant", True),
+            confidence=float(judge_json.get("confidence", 0.5)),
+            feedback=judge_json.get("feedback", "Relevance validation completed.")
+        )
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        print(f"Error parsing relevance judge response: {e}\nResponse was: {relevance_response_text}")
+        return RelevanceJudgeResponse(
+            is_relevant=True,
+            confidence=0.5,
+            feedback="Unable to validate relevance. Proceeding with caution."
+        )
 
 @app.post("/api/analyze", response_model=TicketAnalysis)
 async def analyze_ticket(ticket_request: TicketRequest):
